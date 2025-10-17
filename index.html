@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Total Sales Dashboard</title>
+    <!-- Tailwind CSS CDN for modern, clean, and responsive design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for font consistency and slight overrides */
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-900 min-h-screen flex flex-col">
+    <header class="bg-blue-600 text-white p-4 shadow-md" role="banner">
+        <div class="container mx-auto">
+            <h1 class="text-3xl font-bold text-center">Sales Performance Overview</h1>
+        </div>
+    </header>
+
+    <main class="flex-grow container mx-auto p-4 md:p-8" role="main">
+        <section class="mb-8 p-6 bg-white rounded-lg shadow-xl text-center" aria-labelledby="total-sales-heading">
+            <h2 id="total-sales-heading" class="text-2xl md:text-3xl font-semibold mb-4 text-gray-700">Total Sales Sum</h2>
+            <p id="total-sales-sum" class="text-4xl md:text-6xl font-extrabold text-blue-700" aria-live="polite">Calculating...</p>
+            <p id="error-message" class="text-red-500 font-medium mt-4 hidden" role="alert"></p>
+        </section>
+
+        <section class="p-6 bg-white rounded-lg shadow-md" aria-labelledby="individual-sales-heading">
+            <h2 id="individual-sales-heading" class="text-2xl font-semibold mb-4 text-gray-700">Individual Sales Data</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200" role="table">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sales</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-data-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Data will be inserted here by JavaScript -->
+                        <tr><td colspan="2" class="px-6 py-4 text-center text-sm text-gray-500">Loading sales data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <p id="data-error-message" class="text-red-500 font-medium mt-4 hidden" role="alert"></p>
+        </section>
+    </main>
+
+    <footer class="bg-gray-800 text-white p-4 mt-8" role="contentinfo">
+        <div class="container mx-auto text-center text-sm">
+            <p>&copy; 2023 Sales Dashboard. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Embedded CSV data as a string
+        const csvData = `Product,Sales
+Laptop,1200.50
+Mouse,25.99
+Keyboard,89.99
+Monitor,350.00`;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const totalSalesSumElement = document.getElementById('total-sales-sum');
+            const errorMessageElement = document.getElementById('error-message');
+            const salesDataBodyElement = document.getElementById('sales-data-body');
+            const dataErrorMessageElement = document.getElementById('data-error-message');
+
+            let totalSum = 0;
+            let dataRows = [];
+            let parsingErrors = [];
+
+            // Reset initial loading state
+            totalSalesSumElement.textContent = 'Calculating...';
+            salesDataBodyElement.innerHTML = ''; // Clear loading message
+
+            try {
+                const lines = csvData.trim().split('\n');
+                if (lines.length < 2) { // At least one header line and one data line
+                    throw new Error('CSV data is empty or too short.');
+                }
+
+                const header = lines[0].split(',').map(h => h.trim());
+                const productIndex = header.indexOf('Product');
+                const salesIndex = header.indexOf('Sales');
+
+                if (productIndex === -1 || salesIndex === -1) {
+                    throw new Error('CSV header missing "Product" or "Sales" columns.');
+                }
+
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue; // Skip empty lines
+
+                    const columns = line.split(',').map(c => c.trim());
+
+                    // Ensure column count is at least enough for product and sales
+                    if (columns.length <= Math.max(productIndex, salesIndex)) {
+                        parsingErrors.push(`Skipping row due to insufficient columns: "${line}"`);
+                        dataRows.push({
+                            product: 'N/A',
+                            sales: `<span class="text-red-500 font-bold">Format Error</span>`,
+                            isError: true
+                        });
+                        continue;
+                    }
+
+                    const product = columns[productIndex] || 'N/A';
+                    const salesStr = columns[salesIndex];
+                    let salesValue = parseFloat(salesStr);
+
+                    if (isNaN(salesValue) || salesStr === undefined || salesStr.trim() === '') {
+                        parsingErrors.push(`Skipping row for product "${product}" due to invalid sales data: "${salesStr || 'Empty'}"`);
+                        // Add a row to the table even for invalid data, but highlight it
+                        dataRows.push({
+                            product: product,
+                            sales: `<span class="text-red-500 font-bold">Invalid: "${salesStr || 'Empty'}"</span>`,
+                            isError: true
+                        });
+                    } else {
+                        totalSum += salesValue;
+                        dataRows.push({ product: product, sales: salesValue.toFixed(2), isError: false });
+                    }
+                }
+
+                // Display total sum
+                totalSalesSumElement.textContent = `$${totalSum.toFixed(2)}`;
+
+                // Display individual sales data in the table
+                if (dataRows.length > 0) {
+                    dataRows.forEach(data => {
+                        const row = document.createElement('tr');
+                        row.className = data.isError ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'; // Highlight error rows
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${data.product}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm ${data.isError ? 'text-red-600' : 'text-gray-500'}">${data.isError ? data.sales : `$${data.sales}`}</td>
+                        `;
+                        salesDataBodyElement.appendChild(row);
+                    });
+                } else {
+                    salesDataBodyElement.innerHTML = `<tr><td colspan="2" class="px-6 py-4 text-center text-sm text-gray-500">No valid sales data found after parsing.</td></tr>`;
+                }
+
+                // Display parsing errors if any
+                if (parsingErrors.length > 0) {
+                    errorMessageElement.classList.remove('hidden');
+                    errorMessageElement.innerHTML = `<strong>Data Parsing Warnings:</strong> Some sales values were invalid and skipped from the total sum.`;
+                    dataErrorMessageElement.classList.remove('hidden');
+                    dataErrorMessageElement.innerHTML = `<strong>Details:</strong> ${parsingErrors.join('<br>')}`;
+                }
+
+            } catch (error) {
+                console.error('Error processing CSV data:', error);
+                totalSalesSumElement.textContent = 'Error!';
+                errorMessageElement.classList.remove('hidden');
+                errorMessageElement.textContent = `An critical error occurred while loading data: ${error.message}`;
+                salesDataBodyElement.innerHTML = `<tr><td colspan="2" class="px-6 py-4 text-center text-sm text-red-500">Failed to load sales data: ${error.message}</td></tr>`;
+            }
+        });
+    </script>
+</body>
+</html>
